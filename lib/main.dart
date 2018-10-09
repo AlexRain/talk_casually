@@ -1,4 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+
+///全局变量
+final googleSignIn = new GoogleSignIn();
 
 void main() => runApp(new TalkcasuallyApp());
 
@@ -33,34 +38,62 @@ class _ChatScreen extends State<ChatScreen> with TickerProviderStateMixin {
   final List<ChatMessage> _messages = <ChatMessage>[];
   final TextEditingController _textController = new TextEditingController();
 
+  //谷歌登录用户
+  GoogleSignInAccount _currentUser;
+
   bool _btnEnabled = false;
 
-  void _handleSubmitted(String text) {
+  Future<Null> _ensureLoggedIn() async {
+    GoogleSignInAccount user = googleSignIn.currentUser;
+    if (user == null) user = await googleSignIn.signInSilently();
+    if (user == null) {
+      await googleSignIn.signIn();
+    }
+  }
+
+  Future _handleSubmitted(String text) async {
     if (text.isEmpty) return;
     _textController.clear();
     setState(() {
-          _btnEnabled = false;
-        });
+      _btnEnabled = false;
+    });
+
+    await _ensureLoggedIn();
+    _sendMessage(text: text);
+  }
+
+  void _sendMessage({ String text}) {
     ChatMessage message = new ChatMessage(
       text: text,
       animationController: new AnimationController(
         duration: new Duration(milliseconds: 300),
-        vsync: this,
+        vsync: this
       ),
+      googleAccount: _currentUser,
     );
-
-    ///向消息列表中添加消息
-    setState(() {
+    setState((){
       _messages.insert(0, message);
     });
     message.animationController.forward();
   }
 
-  void _handleTextChanged(String str){
+  void _handleTextChanged(String str) {
     _btnEnabled = str.isNotEmpty;
-    setState(() {
-          
-        });
+    setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    googleSignIn.onCurrentUserChanged.listen((GoogleSignInAccount account) {
+      setState(() {
+        _currentUser = account;
+      });
+      if (_currentUser != null) {
+        // _handleGetContact();
+      }
+    });
+    googleSignIn.signInSilently();
   }
 
   @override
@@ -77,7 +110,7 @@ class _ChatScreen extends State<ChatScreen> with TickerProviderStateMixin {
     var iconBtn = new IconButton(
         icon: new Icon(
           Icons.send,
-          color: _btnEnabled?_color:Colors.grey,
+          color: _btnEnabled ? _color : Colors.grey,
         ),
         onPressed: () => _handleSubmitted(_textController.text));
 
@@ -134,9 +167,10 @@ class _ChatScreen extends State<ChatScreen> with TickerProviderStateMixin {
 const String _name = "hekaiyou";
 
 class ChatMessage extends StatelessWidget {
-  ChatMessage({this.text, this.animationController});
+  ChatMessage({this.text, this.animationController,this.googleAccount});
   final String text;
   final AnimationController animationController;
+  final GoogleSignInAccount googleAccount;
   @override
   Widget build(BuildContext context) {
     return SizeTransition(
@@ -152,7 +186,8 @@ class ChatMessage extends StatelessWidget {
                 children: <Widget>[
                   new Container(
                     margin: const EdgeInsets.only(right: 16.0),
-                    child: new CircleAvatar(child: new Text(_name[0])),
+                    // child: new CircleAvatar(child: new Text(_name[0])),
+                    child:new GoogleUserCircleAvatar(identity:googleAccount),
                   ),
                   new Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
